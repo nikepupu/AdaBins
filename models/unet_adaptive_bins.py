@@ -86,12 +86,13 @@ class UnetAdaptiveBins(nn.Module):
                                         embedding_dim=128, norm=norm)
 
         self.decoder = DecoderBN(num_classes=128)
-        self.conv_out = nn.Sequential(nn.Conv2d(128, n_bins, kernel_size=1, stride=1, padding=0),
+        self.conv_out = nn.Sequential(nn.Conv2d(80, n_bins, kernel_size=1, stride=1, padding=0),
                                       nn.Softmax(dim=1))
 
     def forward(self, x, **kwargs):
         unet_out = self.decoder(self.encoder(x), **kwargs)
         bin_widths_normed, range_attention_maps = self.adaptive_bins_layer(unet_out)
+        
         out = self.conv_out(range_attention_maps)
 
         # Post process

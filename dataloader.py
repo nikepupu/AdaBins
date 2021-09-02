@@ -83,16 +83,12 @@ class DataLoadPreprocess(Dataset):
         self.is_for_online_eval = is_for_online_eval
 
     def __getitem__(self, idx):
-        sample_path = self.filenames[idx]
-        focal = float(sample_path.split()[2])
-
+        sample_path = self.filenames[idx].rstrip()
+        # focal = float(sample_path.split()[2])
+     
         if self.mode == 'train':
-            if self.args.dataset == 'kitti' and self.args.use_right is True and random.random() > 0.5:
-                image_path = os.path.join(self.args.data_path, remove_leading_slash(sample_path.split()[3]))
-                depth_path = os.path.join(self.args.gt_path, remove_leading_slash(sample_path.split()[4]))
-            else:
-                image_path = os.path.join(self.args.data_path, remove_leading_slash(sample_path.split()[0]))
-                depth_path = os.path.join(self.args.gt_path, remove_leading_slash(sample_path.split()[1]))
+            image_path = os.path.join(self.args.data_path, remove_leading_slash(sample_path.split(',')[0]))
+            depth_path = os.path.join(self.args.gt_path, remove_leading_slash(sample_path.split(',')[1]))
 
             image = Image.open(image_path)
             depth_gt = Image.open(depth_path)
@@ -126,7 +122,8 @@ class DataLoadPreprocess(Dataset):
 
             image, depth_gt = self.random_crop(image, depth_gt, self.args.input_height, self.args.input_width)
             image, depth_gt = self.train_preprocess(image, depth_gt)
-            sample = {'image': image, 'depth': depth_gt, 'focal': focal}
+            # sample = {'image': image, 'depth': depth_gt, 'focal': focal}
+            sample = {'image': image, 'depth': depth_gt}
 
         else:
             if self.mode == 'online_eval':
@@ -134,12 +131,12 @@ class DataLoadPreprocess(Dataset):
             else:
                 data_path = self.args.data_path
 
-            image_path = os.path.join(data_path, remove_leading_slash(sample_path.split()[0]))
+            image_path = os.path.join(self.args.data_path, remove_leading_slash(sample_path.split(',')[0]))
             image = np.asarray(Image.open(image_path), dtype=np.float32) / 255.0
 
             if self.mode == 'online_eval':
                 gt_path = self.args.gt_path_eval
-                depth_path = os.path.join(gt_path, remove_leading_slash(sample_path.split()[1]))
+                depth_path = os.path.join(self.args.gt_path, remove_leading_slash(sample_path.split(',')[1]))
                 has_valid_depth = False
                 try:
                     depth_gt = Image.open(depth_path)
@@ -166,10 +163,13 @@ class DataLoadPreprocess(Dataset):
                     depth_gt = depth_gt[top_margin:top_margin + 352, left_margin:left_margin + 1216, :]
 
             if self.mode == 'online_eval':
-                sample = {'image': image, 'depth': depth_gt, 'focal': focal, 'has_valid_depth': has_valid_depth,
-                          'image_path': sample_path.split()[0], 'depth_path': sample_path.split()[1]}
+                # sample = {'image': image, 'depth': depth_gt, 'focal': focal, 'has_valid_depth': has_valid_depth,
+                #           'image_path': sample_path.split()[0], 'depth_path': sample_path.split()[1]}
+                sample = {'image': image, 'depth': depth_gt, 'has_valid_depth': has_valid_depth,
+                          'image_path': sample_path.split(',')[0], 'depth_path': sample_path.split(',')[1]}
             else:
-                sample = {'image': image, 'focal': focal}
+                # sample = {'image': image, 'focal': focal}
+                sample = {'image': image}
 
         if self.transform:
             sample = self.transform(sample)
@@ -236,20 +236,20 @@ class ToTensor(object):
         self.normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
     def __call__(self, sample):
-        image, focal = sample['image'], sample['focal']
+        image = sample['image']
         image = self.to_tensor(image)
         image = self.normalize(image)
 
         if self.mode == 'test':
-            return {'image': image, 'focal': focal}
+            return {'image': image}
 
         depth = sample['depth']
         if self.mode == 'train':
             depth = self.to_tensor(depth)
-            return {'image': image, 'depth': depth, 'focal': focal}
+            return {'image': image, 'depth': depth}
         else:
             has_valid_depth = sample['has_valid_depth']
-            return {'image': image, 'depth': depth, 'focal': focal, 'has_valid_depth': has_valid_depth,
+            return {'image': image, 'depth': depth, 'has_valid_depth': has_valid_depth,
                     'image_path': sample['image_path'], 'depth_path': sample['depth_path']}
 
     def to_tensor(self, pic):
